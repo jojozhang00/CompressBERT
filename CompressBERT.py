@@ -47,7 +47,6 @@ print("The spearmanr result for sentence-transformers is:", result.correlation)
 
 print('Then, apply SVD.')
 
-
 # apply SVD to the procedure above
 # define a method for SVD
 # select count = n eigenvalues
@@ -63,42 +62,61 @@ def k_svd(embeddings, count):
 
 # SVD gives 100 diagonals for matrix Sigma
 percent = np.arange(0.1, 1.1, 0.1).tolist()
-result_ls = []
+result_SVD_ls = []
+
 for index in range(len(percent)):
-    re_text1 = k_svd(embeddings1, int(percent[index]*100)) # take the top biggest eigenvalues
-    re_text2 = k_svd(embeddings2, int(percent[index]*100))
+    embeddings1_SVD = k_svd(embeddings1, int(percent[index]*100)) # take the top biggest eigenvalues
+    embeddings2_SVD = k_svd(embeddings2, int(percent[index]*100))
 
-    re_text1 = torch.tensor(re_text1)
-    re_text2 = torch.tensor(re_text2)
+    embeddings1_SVD = torch.tensor(embeddings1_SVD)
+    embeddings2_SVD = torch.tensor(embeddings2_SVD)
 
-    similarity_SVD = torch.cosine_similarity(re_text1, re_text2, dim=1) 
+    similarity_SVD = torch.cosine_similarity(embeddings1_SVD, embeddings2_SVD, dim=1) 
     result_SVD = spearmanr(similarity_SVD.detach().numpy(), sts_train['sim'])
-    result_ls.append(result_SVD.correlation)
+    result_SVD_ls.append(result_SVD.correlation)
 
     print ('Taking {:.2%}'.format(percent[index]), 'of the eigenvalues, the spearmanr result is:', result_SVD.correlation)
 
 # plot line chart
-plt.scatter(percent, result_ls)
-plt.plot(percent, result_ls)
+plt.figure(1)
+plt.scatter(percent, result_SVD_ls)
+plt.plot(percent, result_SVD_ls)
 plt.title('spearmanr results for SVD')
 plt.xlabel('percentile')
 plt.ylabel('spearmanr')
 plt.savefig('./SVD.jpg')
 
+
+
 print('Then, apply random projection.')
 
 # apply Guassian random projection
-transformer = random_projection.GaussianRandomProjection(n_components = 600) #set n-components otherwise error occurs
-embeddings1_new = transformer.fit_transform(embeddings1)
-print(embeddings1_new.shape)
-embeddings2_new = transformer.fit_transform(embeddings2)
+# percent = np.arange(0.1, 1.1, 0.1).tolist()
+result_rp_ls = []
+size = embeddings1.shape[1]
 
-embeddings1_new = torch.tensor(embeddings1_new)
-embeddings2_new = torch.tensor(embeddings2_new)
+for index in range(len(percent)):
+    transformer = random_projection.GaussianRandomProjection(n_components = int(size*percent[index]), random_state = 1)
+    #set n-components otherwise error occurs
 
-similarity = torch.cosine_similarity(embeddings1_new, embeddings2_new, dim=1) 
-result = spearmanr(similarity.detach().numpy(), sts_train['sim'])
-print("The spearmanr result is:", result.correlation)
+    embeddings1_rp = transformer.fit_transform(embeddings1)
+    embeddings2_rp = transformer.fit_transform(embeddings2)
 
+    embeddings1_rp = torch.tensor(embeddings1_rp)
+    embeddings2_rp = torch.tensor(embeddings2_rp)
 
+    similarity_rp = torch.cosine_similarity(embeddings1_rp, embeddings2_rp, dim=1) 
+    result_rp = spearmanr(similarity_rp.detach().numpy(), sts_train['sim'])
+    result_rp_ls.append(result_rp.correlation)
+
+    print ('Taking {:.2%}'.format(percent[index]), 'of the original dimension as target, the spearmanr result is:', result_rp.correlation)
+
+# plot line chart
+plt.figure(2)
+plt.scatter(percent, result_rp_ls)
+plt.plot(percent, result_rp_ls)
+plt.title('spearmanr results for Gaussian random projection')
+plt.xlabel('percentile')
+plt.ylabel('spearmanr')
+plt.savefig('./random_projection.jpg')
 
