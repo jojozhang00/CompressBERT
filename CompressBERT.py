@@ -11,6 +11,9 @@ from sklearn import random_projection
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt 
+from torch.utils.data import DataLoader,TensorDataset
+from torch.autograd import Variable as V
+
 
 
 # import STS-B dataset 
@@ -43,6 +46,9 @@ embeddings2 = torch.tensor(embeddings2)
 similarity = torch.cosine_similarity(embeddings1, embeddings2, dim=1) 
 result = spearmanr(similarity.detach().numpy(), sts_train['sim'])
 print("The spearmanr result for sentence-transformers is:", result.correlation)
+
+
+
 
 
 print('Then, apply SVD.')
@@ -88,6 +94,7 @@ plt.savefig('./SVD.jpg')
 
 
 
+
 print('Then, apply random projection.')
 
 # apply Guassian random projection
@@ -120,3 +127,112 @@ plt.xlabel('percentile')
 plt.ylabel('spearmanr')
 plt.savefig('./random_projection.jpg')
 
+
+
+
+print('Then, apply autoencoder based method')
+
+# apply autoencoder based method
+# dataLoader is used to load the dataset 
+# for training
+ 
+dataset = TensorDataset(embeddings1)
+loader = DataLoader(dataset, batch_size = 32, shuffle = False)
+num_batch = len(loader)
+print(f"Data loaded: {num_batch} batches")
+
+# creating a PyTorch class
+# 768 ==> 9 ==> 768
+class AE(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+          
+        # building an linear encoder with Linear
+        # layer followed by Relu activation function
+        # 768 ==> 9
+        self.encoder = torch.nn.Sequential(
+            torch.nn.Linear(768, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 64),
+            torch.nn.ReLU(),
+            torch.nn.Linear(64, 36),
+            torch.nn.ReLU(),
+            torch.nn.Linear(36, 18),
+            torch.nn.ReLU(),
+            torch.nn.Linear(18, 9)
+        )
+          
+        # building an linear decoder with Linear
+        # layer followed by Relu activation function
+        # the Sigmoid activation function
+        # outputs the value between 0 and 1
+        # 9 ==> 768
+        self.decoder = torch.nn.Sequential(
+            torch.nn.Linear(9, 18),
+            torch.nn.ReLU(),
+            torch.nn.Linear(18, 36),
+            torch.nn.ReLU(),
+            torch.nn.Linear(36, 64),
+            torch.nn.ReLU(),
+            torch.nn.Linear(64, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 768),
+            torch.nn.Sigmoid()
+        )
+  
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        return encoded, decoded
+
+# model initialization
+model_AE = AE().to(device)
+  
+# validation using MSE Loss function
+loss_function = torch.nn.MSELoss()
+  
+# using an adam optimizer with lr = 0.1
+optimizer = torch.optim.Adam(model_AE.parameters(),
+                             lr = 1e-1,
+                             weight_decay = 1e-8)
+
+epochs = 100
+outputs = []
+losses = []
+
+print("Start training...")
+for epoch in range(epochs):
+    model_AE.train()
+    total_loss = 0
+    for _, sentence in enumerate(loader):
+        sentence = sentence[0].to(device)
+        
+        # output of Autoencoder
+        _, reconstructed = model_AE(sentence)
+        
+        # calculating the loss function
+        optimizer.zero_grad()
+        loss = loss_function(reconstructed, sentence)
+        
+        # the gradients are set to zero,
+        # the the gradient is computed and stored.
+        # .step() performs parameter update
+        loss.backward()
+        optimizer.step()
+        
+        total_loss += loss.item()
+        # storing the losses in a list for plotting
+    
+    losses.append(total_loss/num_batch)
+
+    print("Epoch %d: Training loss %.4f" %(epoch, total_loss/num_batch))
+    # outputs.append((epochs, sentence, reconstructed))
+
+print("Training finished!")
+
+print("Plot training loss")
+plt.figure(3)
+plt.plot(list(range(epochs)), losses)
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.savefig('./AE.jpg')
