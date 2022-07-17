@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# use pytorch to construct the network
+
 import pandas as pd
 import numpy as np
 import os
