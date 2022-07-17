@@ -22,7 +22,6 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 
-
 # import STS-B dataset 
 sts_dataset = tf.keras.utils.get_file(
     fname="Stsbenchmark.tar.gz",
