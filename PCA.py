@@ -42,51 +42,48 @@ sts_test = pd.read_table(
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("device for training: ", device)
 
+# apply sentence embeddings
+model = SentenceTransformer('sentence-transformers/stsb-bert-base')
+
 text1 = sts_train['sent_1'].tolist()
 text2 = sts_train['sent_2'].tolist()
+embeddings1 = model.encode(text1)
+embeddings2 = model.encode(text2)
 
-# apply sentence embeddings
-# model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
-model = SentenceTransformer('sentence-transformers/stsb-bert-base')
-# stsb-bert-base work better
-
-# get the embeddings
-def get_embeddings(text):
-    embeddings = model.encode(text)
-    # convert numpy array to tensor
-    embeddings = torch.tensor(embeddings)
-    return embeddings
-
-embeddings1 = get_embeddings(text1) 
-embeddings2 = get_embeddings(text2) 
-
-similarity = torch.cosine_similarity(embeddings1, embeddings2, dim=1) 
+similarity = torch.cosine_similarity(torch.tensor(embeddings1), torch.tensor(embeddings2), dim=1) 
 result = spearmanr(similarity.detach().numpy(), sts_train['sim'])
-print("For train set:")
-print("Spearman r for sentence-transformers is:", result.correlation)
+print("The spearmanr result for sentence-transformers is:", result.correlation)
+
+# for test data
+t1 = sts_test['sent_1'].tolist()
+t2 = sts_test['sent_2'].tolist()
+e1 = model.encode(t1) 
+e2 = model.encode(t2) 
+
+# concat train and test sets (transductive learning)
+sts_all = pd.concat([sts_train, sts_test], axis = 0, ignore_index = True)
+text1_all = sts_all['sent_1'].tolist()
+embeddings1_all = model.encode(text1_all) 
 
 result_PCA = []
-# new_dim_ls = []
-new_dim_ls = np.arange(10, 140, 10).tolist()
-# percent = np.arange(0.1, 1.1, 0.1).tolist()
-# dim = embeddings1.shape[1]
+new_dim_ls = np.arange(10, 360, 10).tolist()
 
 for index in range(len(new_dim_ls)):
-    new_dim = int(new_dim_ls[index])
-    # new_dim_ls.append(new_dim)
+
+    new_dim = new_dim_ls[index]
+
     pca = PCA(n_components = new_dim)
-    pca.fit(embeddings1)
-    reduced_1 = pca.fit_transform(embeddings1)
-    reduced_1 = torch.Tensor(reduced_1)
+    # pca.fit(embeddings1)
+    pca.fit(embeddings1_all)
 
-    reduced_2 = pca.transform(embeddings2)
-    reduced_2 = torch.Tensor(reduced_2)
+    reduced_1 = pca.transform(e1)
+    reduced_2 = pca.transform(e2)
 
-    similarity_PCA = torch.cosine_similarity(reduced_1, reduced_2, dim=1) 
-    result = spearmanr(similarity_PCA.detach().numpy(), sts_train['sim'])
+    similarity_PCA = torch.cosine_similarity(torch.Tensor(reduced_1), torch.Tensor(reduced_2), dim=1) 
+    result = spearmanr(similarity_PCA.detach().numpy(), sts_test['sim'])
     result_PCA.append(result.correlation)
 
-    print ('Taking {}'.format(new_dim_ls[index]), 'of the origin dim, spearman r is:', result.correlation)
+    print('Taking {}'.format(new_dim_ls[index]), 'as the projection dim, spearman r is:', result.correlation)
 
 # plot line chart
 plt.scatter(new_dim_ls, result_PCA)
