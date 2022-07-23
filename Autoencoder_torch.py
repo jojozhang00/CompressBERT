@@ -3,6 +3,7 @@
 import pandas as pd
 import numpy as np
 import os
+import csv
 import tensorflow as tf
 import torch
 from scipy.stats import spearmanr
@@ -20,7 +21,6 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 
-
 # import STS-B dataset 
 sts_dataset = tf.keras.utils.get_file(
     fname="Stsbenchmark.tar.gz",
@@ -32,34 +32,44 @@ sts_train = pd.read_table(
     skip_blank_lines=True,
     usecols=[4, 5, 6],
     names=["sim", "sent_1", "sent_2"])
+sts_test = pd.read_table(
+    os.path.join(os.path.dirname(sts_dataset), "stsbenchmark", "sts-test.csv"),
+    error_bad_lines=False,
+    quoting=csv.QUOTE_NONE,
+    skip_blank_lines=True,
+    usecols=[4, 5, 6],
+    names=["sim", "sent_1", "sent_2"])
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("device for training: ", device)
 
+# apply sentence embeddings
+model = SentenceTransformer('sentence-transformers/stsb-bert-base')
+
 text1 = sts_train['sent_1'].tolist()
 text2 = sts_train['sent_2'].tolist()
-
-# apply sentence embeddings
-# model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
-model = SentenceTransformer('sentence-transformers/stsb-bert-base')
-# stsb-bert-base work better
 embeddings1 = model.encode(text1)
-embeddings1 = torch.tensor(embeddings1)  # convert numpy array to tensor
 embeddings2 = model.encode(text2)
-embeddings2 = torch.tensor(embeddings2)
 
-similarity = torch.cosine_similarity(embeddings1, embeddings2, dim=1) 
+similarity = torch.cosine_similarity(torch.tensor(embeddings1), torch.tensor(embeddings2), dim=1) 
 result = spearmanr(similarity.detach().numpy(), sts_train['sim'])
 print("The spearmanr result for sentence-transformers is:", result.correlation)
 
+# for test data
+t1 = sts_test['sent_1'].tolist()
+t2 = sts_test['sent_2'].tolist()
+e1 = model.encode(t1) 
+e2 = model.encode(t2) 
+
+# concat train and test sets (transductive learning)
+sts_all = pd.concat([sts_train, sts_test], axis = 0, ignore_index = True)
+text1_all = sts_all['sent_1'].tolist()
+embeddings1_all = model.encode(text1_all) 
 
 
 print('Then, apply autoencoder based method')
 
 # apply autoencoder based method
-# dataLoader is used to load the dataset 
-# for training
- 
 dataset = TensorDataset(embeddings1)
 loader = DataLoader(dataset, batch_size = 32, shuffle = False)
 num_batch = len(loader)
@@ -73,8 +83,6 @@ class AE(torch.nn.Module):
     def __init__(self, dim):
         super().__init__()
           
-        # building an linear encoder with Linear
-        # layer followed by Relu activation function
         self.encoder = torch.nn.Sequential(
             torch.nn.Linear(768, dim),
             torch.nn.ReLU(),
@@ -82,10 +90,6 @@ class AE(torch.nn.Module):
             # torch.nn.ReLU()
         )
           
-        # building an linear decoder with Linear
-        # layer followed by Relu activation function
-        # the Sigmoid activation function
-        # outputs the value between 0 and 1
         self.decoder = torch.nn.Sequential(
             # torch.nn.Linear(int(dim/2), dim),
             # torch.nn.ReLU(),
@@ -98,8 +102,7 @@ class AE(torch.nn.Module):
         decoded = self.decoder(encoded)
         return encoded, decoded
 
-dim_ls = np.arange(300, 800, 50).tolist()
-dim_ls.append(768)
+dim_ls = np.arange(50, 370, 20).tolist()
 new_ls = [int(x/2) for x in dim_ls]
 result_AE_ls =[]
 
@@ -115,7 +118,7 @@ for dim in dim_ls:
                                 lr = 1e-3,
                                 weight_decay = 1e-8)
 
-    epochs = 200 # converge
+    epochs = 70 # converge
     outputs = []
     losses = []
 
@@ -126,7 +129,6 @@ for dim in dim_ls:
         for _, sentence in enumerate(loader):
             sentence = sentence[0].to(device)
             
-            # output of Autoencoder
             _, reconstructed = model_AE(sentence)
             
             # calculating the loss function
@@ -148,7 +150,6 @@ for dim in dim_ls:
         # outputs.append((epochs, sentence, reconstructed))
 
     print("Training finished!")
-
    
     # plot the relationship between losses and epoches
     print("Plot training loss")
@@ -158,11 +159,8 @@ for dim in dim_ls:
     plt.ylabel('Loss')
     plt.savefig('./AE_loss.jpg')
 
-  
-
     # save the model
     torch.save(model_AE.state_dict(), './AE.pth')
-
 
     # load the model
     model_AE = AE(dim = dim).to(device)
@@ -188,12 +186,8 @@ for dim in dim_ls:
         encoded, _ = model_AE(sentence)
         embeddings2_AE.append(encoded[0].tolist())
 
-    # print(embeddings1_AE) # list里面有很多tensor
 
-    embeddings1_AE = torch.Tensor(embeddings1_AE)
-    embeddings2_AE = torch.Tensor(embeddings2_AE)
-
-    similarity = torch.cosine_similarity(embeddings1_AE, embeddings2_AE, dim=1) 
+    similarity = torch.cosine_similarity(torch.Tensor(embeddings1_AE), torch.Tensor(embeddings2_AE), dim=1) 
     result_AE = spearmanr(similarity.detach().numpy(), sts_train['sim'])
     result_AE_ls.append(result_AE.correlation)
 
