@@ -54,7 +54,7 @@ spearman r: 0.837 ~ 0.850, projection dimension: 70 ~ 360 \
 For inductive learning:\
 spearman r: 0.837 ~ 0.850, projection dimension: 70 ~ 360 \
 Note:\
-Good performance and works fast.
+Good performance and works very fast.
 
 ### greedy layer-wise autoencoder (2 layers) (keras)
 epoch = 70 (losses haven't converge) \
