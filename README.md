@@ -12,9 +12,12 @@ inductive learning: train on the 1st coulumn train data (5711, 768), test on tes
 ## Reuslts
 The results represent scores that spearman r is stable at and corresponding rough projection dimension (for reference). Projection dimension larger than 375 is not considered here. 
 
-Summary: \
-Trianing speed: Gaussian random projection ~ PCA >> UMAP > AE(1 layer) > AE(2 layers) ~ greedy AE \
-Performance: Gaussian random projection ~ PCA > AE(1 layer) > AE(2 layers) > greedy AE >> UMAP 
+
+Training speed:\
+Gaussian random projection ~ PCA > SVD >> UMAP > AE(1 layer) > AE(2 layers) ~ greedy AE 
+
+Performance:\
+SVD ~ Gaussian random projection ~ PCA > AE(1 layer) > AE(2 layers) > greedy AE >> UMAP 
 
 Problems: \
 1.UMAP should perform much better? \
@@ -28,6 +31,14 @@ For inductive learning:\
 spearman r: 0.840 ~ 0.848, projection dimension: 70 ~ 350  \
 Note:\
 Good performance and works very fast.
+
+### SVD
+For transductive learning:\
+spearman r: 0.837 ~ 0.850, projection dimension: 50 ~ 350 \
+For inductive learning:\
+spearman r: 0.833 ~ 0.849, projection dimension: 50 ~ 350  \
+Note:\
+Good performance and works fast. Spearnman r reaches 0.83 with smaller projection dimension than PCA and Gaussian random projection.
 
 ### UMAP
 For transductive learning:\
