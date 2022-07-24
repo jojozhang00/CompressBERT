@@ -10,7 +10,7 @@ transductive learning: train on the 1st coulumn of train and test data (7090, 76
 inductive learning: train on the 1st coulumn train data (5711, 768), test on test set 
 
 ## Reuslts
-The results represent scores that spearman r is stable at and corresponding rough projection dimension (for reference). Projection dimension larger than 375 is not considered here. 
+The results represent scores that spearman r is roughly stable at and corresponding projection dimensions (for reference). Projection dimension larger than 375 is not considered here. 
 
 
 Training speed:\
