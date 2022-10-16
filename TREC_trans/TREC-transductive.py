@@ -34,14 +34,14 @@ dataset = load_dataset("trec")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("device for training: ", device)
 
-# apply sentence embeddings
+# apply sentence encoder
 path = 'sentence-transformers/all-mpnet-base-v2'
 # path = 'sentence-transformers/msmarco-roberta-base-v2'
 # path = 'sentence-transformers/paraphrase-xlm-r-multilingual-v1'
 model = SentenceTransformer(path)
 name=path.split('/')[1]
 
-# concat train and test sets (transductive learning)
+# concat train and test sets (transductive setting)
 embeddings_all = model.encode(dataset['train']['text']+dataset['test']['text'])  
 
 dim_origin = embeddings_all.shape[1] 
